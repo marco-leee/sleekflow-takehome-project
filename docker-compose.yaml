@@ -1,0 +1,10 @@
+services:
+  
+
+networks:
+  sleekflow:
+    driver: bridge
+
+volumes:
+  sleekflow-data:
+    driver: local
