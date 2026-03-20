@@ -2,3 +2,13 @@
 
 - Updated `AGENTS.md` to add explicit `Do` and `Don't` rule sections.
 - Kept existing project rules and permissions unchanged.
+
+### Using @docs/features/template.md and @docs/main.md , draft @docs/features/todo-list.md . scope is confined to todo list feature only
+
+1. Created `docs/features/todo-list.md` using the feature template frontmatter and section structure.
+2. Added todo-only value proposition and user journey based on the defined project scope.
+3. Added functional requirements for TODO fields, CRUD, recurrence, dependency blocking, filtering, sorting, UI actions, and backend API support.
+4. Added non-functional requirements for concurrency, soft-delete retention, 10,000+ item responsiveness, validation, testing, local runability, and documentation.
+5. Added technical stack details for frontend, backend, and database including a todo/dependency mermaid schema.
+6. Marked Third Party Services, selected DevOps items, and AI subsections as minimal/not required where outside feature scope.
+7. Added references and feature-document log entry in `docs/features/todo-list.md`.
