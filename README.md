@@ -1,17 +1,19 @@
 # Sleekflow Todo list app
 
-## Repo Structure
+## Design documentation
 
-```
-docs/
-src/
-test/
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-```
+Extended product and system design notes live under [docs/](docs/main.md):
+
+- [Documentation index (TOC)](docs/main.md)
+- [Project / operation team analysis](docs/project-team-analysis.md)
+- [User behaviour journey](docs/user-behaviour-journey.md)
+- [Application analysis / features](docs/application-features.md)
+- [System analysis and design](docs/system-analysis-design.md)
+- [Tech stack](docs/tech-stack.md)
+- [DevOps / infrastructure](docs/devops-infrastructure.md)
+- [Final project scope](docs/project-scope.md)
+
+## Repo Structure
 
 ## Commands
 
