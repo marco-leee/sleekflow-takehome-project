@@ -1,0 +1,8 @@
+## Setup Biome + Pre-commit Checks
+
+1. Updated `app/package.json` to add `@biomejs/biome`, `lint-staged`, and `husky`, plus `lint`, `format`, and `prepare` scripts.
+2. Added `lint-staged` config in `app/package.json` to run Biome checks on staged `*.{js,jsx,ts,tsx,json,md,css}` files.
+3. Added `app/biome.json` with formatter and linter configuration, including disabling `style/useImportType` to avoid unrelated refactor requirements.
+4. Added Husky pre-commit hook at `app/.husky/pre-commit` to run `bunx lint-staged`.
+
+---

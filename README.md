@@ -27,3 +27,11 @@ Main IDE = Cursor
 [Superpowers](https://github.com/obra/superpowers)
 
 `/write-plan` - Write a plan for a feature
+
+
+[x] Complete the entire system design
+[ ] Complete the entire application design
+[x] Decide what features to implement and what not to
+[x] Tidy up the design documents so the structure is clear, easy to understand and presentable
+[ ] Sign off to cloud agents to build the application
+[ ] Setup cloudflare as a hosting environment
