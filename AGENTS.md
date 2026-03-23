@@ -16,6 +16,8 @@
 3. ONLY USING PROTOBUF FOR COMMUNICATION BETWEEN SERVICES, OBJECTS ARE DTOs, NOT MODELS IN BACKEND
    1. For DTOs, only expose the fields that are needed for the client
 4. Log your changes in a log file in `docs/logs/`, name it as `YYYY-MM-DD.log`
+5. Always use KISS principle, keep things simple and minimal.
+6. Always use YAGNI principle, only add features and complexity that are needed.
 
 ## Do
 
@@ -25,7 +27,10 @@
 - Use DTOs in backend and expose only needed client fields
 - Log every change in `docs/logs/YYYY-MM-DD.log`
   - Append the log file, do not overwrite it
-  - Use the prompt as the title of the log file and then list out all the changes made in the log file as number list
+  - All threads on the same day should be in the same log file, use the date as the file name
+  - Each thread in the log file should be separated by a horizontal line. Using thread id as the title for the section in the log file. Fallback to the first prompt if no thread id is found.
+  - Given a thread, find the right section in the log file corresponding to the thread and list out all the changes made in the thread as number list
+  - ONLY LOG WHAT YOU CHANGE IN THE CODE AND DOCS, NOT THE PLAN
 
 ## Don't
 
