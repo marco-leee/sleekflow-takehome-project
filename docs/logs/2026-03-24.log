@@ -1,0 +1,9 @@
+---
+## Redo `schema.ts` (Drizzle)
+
+1. Recreated `app/apps/web/app/db/schema.ts` with Drizzle table definitions for `todo_items` and `todo_dependencies`.
+2. Matched runtime SQL schema fields and names, including UUID defaults, recurrence fields, and string-mode timestamptz columns.
+3. Added Drizzle-level constraints and indexes to mirror current SQL: unique dependency pair and all todo/dependency indexes used by the service.
+4. Removed dependency table `id` from `app/apps/web/app/db/schema.ts` so dependency rows are keyed by (`todo_id`, `depends_on_todo_id`) + unique constraint only.
+5. Removed dependency table `id` from SQL bootstrap in `app/apps/web/app/services/todo.server.ts` to keep runtime table definition consistent with the updated schema/documentation.
+6. Fixed TODO edit action flow in `app/apps/web/app/routes/home.tsx` by updating table column memo dependencies so `TodoRowActions` always receives current edit/delete handlers and can prefill form fields on edit.

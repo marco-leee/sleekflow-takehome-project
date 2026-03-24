@@ -79,3 +79,41 @@
 3. Fixed custom recurrence field not showing: Changed to use nested form field that conditionally renders based on `recurrence_type` value.
 4. Added "none" to recurrence types for one-off tasks: Updated schema, default values, edit handling, and submit logic to handle no recurrence.
 5. Reverted custom recurrence to use number + select (interval/unit) instead of crontab syntax.
+
+---
+
+## /write-plan Based on @docs/features/todo-list.md , implement the backend api, use react router api ssr. no golang no protobuf
+
+1. Added backend DB connection module at `app/apps/web/app/db/client.server.ts` using `DATABASE_URL` and `pg` pool.
+2. Added backend todo service module at `app/apps/web/app/services/todo.server.ts` with schema bootstrap, list/get/create/update/delete/dependencies/complete operations, optimistic locking (`updated_at`), `SELECT ... FOR UPDATE` transaction flow, dependency validation, recurrence generation, and soft delete support.
+3. Added React Router SSR API routes:
+   - `app/apps/web/app/routes/api.v1.todos.ts`
+   - `app/apps/web/app/routes/api.v1.todos.$id.ts`
+   - `app/apps/web/app/routes/api.v1.todos.$id.dependencies.ts`
+   - `app/apps/web/app/routes/api.v1.todos.$id.complete.ts`
+4. Updated API route registration in `app/apps/web/app/routes.ts` to expose `/api/v1/todos`, `/api/v1/todos/:id`, `/api/v1/todos/:id/dependencies`, and `/api/v1/todos/:id/complete`.
+5. Updated `app/apps/web/app/routes/home.tsx` to use backend APIs instead of in-memory TODO state:
+   - list via `GET /api/v1/todos`
+   - create via `POST /api/v1/todos`
+   - edit via `PUT /api/v1/todos/:id` only
+   - delete via `DELETE /api/v1/todos/:id`
+6. Updated `docs/features/todo-list.md` backend section to use React Router SSR TypeScript API (removed Golang/protobuf notes), added missing dependency/complete endpoints, and split create/update payload docs to make `PUT` update semantics explicit.
+
+7. Debugged TODO API `GET` 500 error and confirmed root cause was missing runtime `DATABASE_URL`; updated API route error mapping files to return explicit config error message (`Server config error: DATABASE_URL is required`) instead of generic internal server error.
+8. Updated `docs/features/todo-list.md` documentation section to explicitly note `DATABASE_URL` is required for local backend API runtime.
+
+---
+
+## @app/apps/web/app/services/todo.server.ts use drizzle orm instead
+
+1. Updated `app/apps/web/app/db/client.server.ts` to expose `getDb()` using `drizzle-orm/node-postgres` on the shared `pg` pool.
+2. Refactored `app/apps/web/app/services/todo.server.ts` to run all database operations through Drizzle (`db.execute`, `db.transaction`) instead of direct `pool.query` / `client.query` calls, including list/count queries and transactional writes.
+
+---
+
+## why using client execute syntax? use orm related syntax instead
+
+1. Added Drizzle table definitions in `app/apps/web/app/db/schema.ts` (`todo_items`, `todo_dependencies`) and wired `getDb()` to use `{ schema }` in `app/apps/web/app/db/client.server.ts`.
+2. Refactored `app/apps/web/app/services/todo.server.ts` to use Drizzle query builders (`select`, `insert`, `update`, `delete`, `where`, `inArray`, `exists`, `count`, `for('update')`, etc.) instead of `db.execute(sql\`...\`)` for CRUD and listing; kept `db.execute(sql.raw(...))` only for one-off DDL in `ensureTodoSchema()`.
+3. Normalized list/detail API rows to use `dependency_ids` (with `recurrence` built from stored type/config) so responses match the shared `todoSchema` / home UI.
+4. `app/apps/web/app/db/client.server.ts`: accept `DATABASE_URL` or `VITE_DATABASE_URL` for the connection string (still throws `DATABASE_URL is required` when neither is set, for existing API error handling).

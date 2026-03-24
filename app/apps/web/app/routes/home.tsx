@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "@tanstack/react-form"
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query"
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -42,6 +47,15 @@ type TodoSortField = z.infer<typeof todoSortFieldSchema>
 type SortOrder = z.infer<typeof sortOrderSchema>
 type RecurrenceType = z.infer<typeof recurrenceTypeSchema>
 type DependencyState = "blocked" | "unblocked"
+type TodoApiItem = Todo & {
+  updated_at?: string
+}
+type TodoListResponse = {
+  items: TodoApiItem[]
+  page: number
+  page_size: number
+  total: number
+}
 
 const queryClient = new QueryClient()
 
@@ -72,26 +86,7 @@ function formatForDateTimeLocal(dateTimeIso: string) {
 }
 
 function HomePage() {
-  const [todos, setTodos] = useState<Todo[]>([
-    {
-      id: "todo-1",
-      name: "Design TODO UI",
-      description: "Build base list page and form",
-      due_date: new Date(Date.now() + 86400000).toISOString(),
-      status: "In Progress",
-      priority: "High",
-      dependency_ids: [],
-    },
-    {
-      id: "todo-2",
-      name: "Define API contract",
-      description: "Document CRUD + recurrence endpoints",
-      due_date: new Date(Date.now() + 86400000 * 2).toISOString(),
-      status: "Not Started",
-      priority: "Medium",
-      dependency_ids: ["todo-1"],
-    },
-  ])
+  const queryClientApi = useQueryClient()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"All" | TodoStatus>("All")
   const [priorityFilter, setPriorityFilter] = useState<"All" | TodoPriority>("All")
@@ -105,75 +100,37 @@ function HomePage() {
     { id: "due_date", desc: false },
   ])
   const [page, setPage] = useState(1)
-  const pageSize = 5
+  const pageSize = 20
   const [formError, setFormError] = useState<string | null>(null)
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
+  const [editingTodoUpdatedAt, setEditingTodoUpdatedAt] = useState<string | null>(
+    null
+  )
 
   const todoListQuery = useQuery({
-    queryKey: [
-      "todos",
-      todos,
-      search,
-      statusFilter,
-      priorityFilter,
-      dueDateFilter,
-      dependencyStateFilter,
-      sortField,
-      sortOrder,
-    ],
+    queryKey: ["todos", search, statusFilter, priorityFilter, dueDateFilter, dependencyStateFilter, sortField, sortOrder, page, pageSize],
     queryFn: async () => {
-      const dependencyStatusMap = new Map(todos.map((todo) => [todo.id, todo.status]))
+      const params = new URLSearchParams()
+      if (search) params.set("search", search)
+      if (statusFilter !== "All") params.append("status", statusFilter)
+      if (priorityFilter !== "All") params.append("priority", priorityFilter)
+      if (dueDateFilter) {
+        params.set("due_date_from", new Date(`${dueDateFilter}T00:00:00`).toISOString())
+        params.set("due_date_to", new Date(`${dueDateFilter}T23:59:59`).toISOString())
+      }
+      if (dependencyStateFilter !== "All") {
+        params.set("dependency_state", dependencyStateFilter)
+      }
+      params.set("sort_by", sortField)
+      params.set("sort_direction", sortOrder)
+      params.set("page", String(page))
+      params.set("page_size", String(pageSize))
 
-      return todos
-        .filter((todo) => {
-          if (statusFilter !== "All" && todo.status !== statusFilter) {
-            return false
-          }
-          if (priorityFilter !== "All" && todo.priority !== priorityFilter) {
-            return false
-          }
-          if (search) {
-            const keyword = search.toLowerCase()
-            return (
-              todo.name.toLowerCase().includes(keyword) ||
-              todo.description.toLowerCase().includes(keyword)
-            )
-          }
-
-          if (dueDateFilter) {
-            const todoDate = new Date(todo.due_date).toISOString().slice(0, 10)
-            if (todoDate !== dueDateFilter) {
-              return false
-            }
-          }
-
-          if (dependencyStateFilter !== "All") {
-            const isBlocked = todo.dependency_ids.some(
-              (dependencyId) => dependencyStatusMap.get(dependencyId) !== "Completed"
-            )
-            if (dependencyStateFilter === "blocked" && !isBlocked) {
-              return false
-            }
-            if (dependencyStateFilter === "unblocked" && isBlocked) {
-              return false
-            }
-          }
-
-          return true
-        })
-        .sort((a, b) => {
-          const direction = sortOrder === "asc" ? 1 : -1
-          if (sortField === "due_date") {
-            return a.due_date.localeCompare(b.due_date) * direction
-          }
-          if (sortField === "name") {
-            return a.name.localeCompare(b.name) * direction
-          }
-          if (sortField === "priority") {
-            return a.priority.localeCompare(b.priority) * direction
-          }
-          return a.status.localeCompare(b.status) * direction
-        })
+      const response = await fetch(`/api/v1/todos?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error("Failed to fetch todos")
+      }
+      return (await response.json()) as TodoListResponse
     },
   })
 
@@ -189,17 +146,18 @@ function HomePage() {
     sortOrder,
   ])
 
-  const paginatedTodos = useMemo(() => {
-    const filteredTodos = todoListQuery.data ?? []
-    const startIndex = (page - 1) * pageSize
-    return filteredTodos.slice(startIndex, startIndex + pageSize)
-  }, [page, pageSize, todoListQuery.data])
+  const paginatedTodos = useMemo(
+    () => todoListQuery.data?.items ?? [],
+    [todoListQuery.data]
+  )
+  const allTodos = paginatedTodos
 
   const handleEditTodo = (todoId: string) => {
-    const todo = todos.find((t) => t.id === todoId)
+    const todo = allTodos.find((t) => t.id === todoId)
     if (!todo) return
 
     setEditingTodoId(todoId)
+    setEditingTodoUpdatedAt(todo.updated_at ?? null)
     void form.setFieldValue("name", todo.name, { dontValidate: true })
     void form.setFieldValue("description", todo.description, { dontValidate: true })
     void form.setFieldValue("due_date", formatForDateTimeLocal(todo.due_date), {
@@ -227,20 +185,21 @@ function HomePage() {
   }
 
   const handleDeleteTodo = (todoId: string) => {
-    setTodos((previous) => previous.filter((todo) => todo.id !== todoId))
-    if (editingTodoId === todoId) {
-      setEditingTodoId(null)
-      setFormError(null)
-      form.reset()
-    }
-  }
+    void (async () => {
+      const response = await fetch(`/api/v1/todos/${todoId}`, { method: "DELETE" })
+      if (!response.ok) {
+        setFormError("Failed to delete TODO")
+        return
+      }
 
-  const handleCompleteTodo = (todoId: string) => {
-    setTodos((previous) =>
-      previous.map((todo) =>
-        todo.id === todoId ? { ...todo, status: "Completed" } : todo
-      )
-    )
+      if (editingTodoId === todoId) {
+        setEditingTodoId(null)
+        setEditingTodoUpdatedAt(null)
+        setFormError(null)
+        form.reset()
+      }
+      await queryClientApi.invalidateQueries({ queryKey: ["todos"] })
+    })()
   }
 
   const columns = useMemo(() => {
@@ -279,7 +238,7 @@ function HomePage() {
         ),
       }),
     ]
-  }, [])
+  }, [handleDeleteTodo, handleEditTodo])
 
   const table = useReactTable({
     data: paginatedTodos,
@@ -310,68 +269,72 @@ function HomePage() {
       }
       setFormError(null)
 
+      const recurrenceConfig =
+        parsed.data.recurrence_type === "custom"
+          ? {
+              interval: parsed.data.custom_interval ?? 1,
+              unit: parsed.data.custom_unit ?? "day",
+            }
+          : undefined
+
       if (editingTodoId) {
-        setTodos((previous) =>
-          previous.map((todo) =>
-            todo.id === editingTodoId
-              ? {
-                  ...todo,
-                  name: parsed.data.name,
-                  description: parsed.data.description,
-                  due_date: new Date(parsed.data.due_date).toISOString(),
-                  status: parsed.data.status,
-                  priority: parsed.data.priority,
-                  dependency_ids: parsed.data.dependency_ids,
-                  recurrence:
-                    parsed.data.recurrence_type === "none"
-                      ? undefined
-                      : parsed.data.recurrence_type === "custom"
-                        ? {
-                            type: "custom",
-                            custom: {
-                              interval: parsed.data.custom_interval ?? 1,
-                              unit: parsed.data.custom_unit ?? "day",
-                            },
-                          }
-                        : {
-                            type: parsed.data.recurrence_type,
-                          },
-                }
-              : todo
-          )
-        )
+        const response = await fetch(`/api/v1/todos/${editingTodoId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: parsed.data.name,
+            description: parsed.data.description,
+            due_date: new Date(parsed.data.due_date).toISOString(),
+            status: parsed.data.status,
+            priority: parsed.data.priority,
+            recurrence_type:
+              parsed.data.recurrence_type === "none"
+                ? null
+                : parsed.data.recurrence_type,
+            recurrence_config: recurrenceConfig,
+            dependencies: parsed.data.dependency_ids,
+            updated_at: editingTodoUpdatedAt,
+          }),
+        })
+
+        if (!response.ok) {
+          setFormError("Failed to update TODO")
+          return
+        }
+
+        await queryClientApi.invalidateQueries({ queryKey: ["todos"] })
         setEditingTodoId(null)
+        setEditingTodoUpdatedAt(null)
         form.reset()
         return
       }
 
-      setTodos((previous) => [
-        ...previous,
-        {
-          id: crypto.randomUUID(),
+      const response = await fetch("/api/v1/todos", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           name: parsed.data.name,
           description: parsed.data.description,
           due_date: new Date(parsed.data.due_date).toISOString(),
           status: parsed.data.status,
           priority: parsed.data.priority,
-          dependency_ids: parsed.data.dependency_ids,
-          recurrence:
-            parsed.data.recurrence_type === "none"
-              ? undefined
-              : parsed.data.recurrence_type === "custom"
-                ? {
-                    type: "custom",
-                    custom: {
-                      interval: parsed.data.custom_interval ?? 1,
-                      unit: parsed.data.custom_unit ?? "day",
-                    },
-                  }
-                : {
-                    type: parsed.data.recurrence_type,
-                  },
-        },
-      ])
+          recurrence_type:
+            parsed.data.recurrence_type === "none" ? null : parsed.data.recurrence_type,
+          recurrence_config: recurrenceConfig,
+          dependencies: parsed.data.dependency_ids,
+        }),
+      })
 
+      if (!response.ok) {
+        setFormError("Failed to create TODO")
+        return
+      }
+
+      await queryClientApi.invalidateQueries({ queryKey: ["todos"] })
       form.reset()
     },
   })
@@ -544,7 +507,7 @@ function HomePage() {
 
   function TodoDependenciesField() {
     const anchorRef = useComboboxAnchor()
-    const availableTodos = todos.filter((todo) => todo.id !== editingTodoId)
+    const availableTodos = allTodos.filter((todo) => todo.id !== editingTodoId)
 
     return (
       <form.Field name="dependency_ids">
@@ -559,7 +522,7 @@ function HomePage() {
               <div ref={anchorRef}>
                 <ComboboxChips>
                   {field.state.value.map((id) => {
-                    const todo = todos.find((t) => t.id === id)
+                    const todo = allTodos.find((t) => t.id === id)
                     return (
                       <ComboboxChip key={id}>
                         {todo?.name ?? id}
@@ -596,6 +559,7 @@ function HomePage() {
             variant="outline"
             onClick={() => {
               setEditingTodoId(null)
+              setEditingTodoUpdatedAt(null)
               setFormError(null)
               form.reset()
             }}
@@ -681,12 +645,12 @@ function HomePage() {
         isError={todoListQuery.isError}
         page={page}
         pageSize={pageSize}
-        totalItems={todoListQuery.data?.length ?? 0}
+        totalItems={todoListQuery.data?.total ?? 0}
         onPreviousPage={() => setPage((previous) => Math.max(1, previous - 1))}
         onNextPage={() => {
           const totalPages = Math.max(
             1,
-            Math.ceil((todoListQuery.data?.length ?? 0) / pageSize)
+            Math.ceil((todoListQuery.data?.total ?? 0) / pageSize)
           )
           setPage((previous) => Math.min(totalPages, previous + 1))
         }}
