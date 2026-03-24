@@ -1,0 +1,119 @@
+## Setup Biome + Pre-commit Checks
+
+1. Updated `app/package.json` to add `@biomejs/biome`, `lint-staged`, and `husky`, plus `lint`, `format`, and `prepare` scripts.
+2. Added `lint-staged` config in `app/package.json` to run Biome checks on staged `*.{js,jsx,ts,tsx,json,md,css}` files.
+3. Added `app/biome.json` with formatter and linter configuration, including disabling `style/useImportType` to avoid unrelated refactor requirements.
+4. Added Husky pre-commit hook at `app/.husky/pre-commit` to run `bunx lint-staged`.
+
+---
+
+## put them in @app/apps/web/lib/ as models.ts and export them
+
+1. Added `app/apps/web/lib/models.ts` with exported Zod schemas for TODO status, priority, recurrence, dependency state, sort fields, core TODO object, CRUD inputs, transition guard, list filter/sort/query, and completion input.
+2. Added `app/apps/web/lib/index.ts` to export all schemas from `models.ts`.
+
+---
+
+## based on @docs/features/todo-list.md:33-44 and @docs/features/todo-list.md:62-68, draft a list of components to implement the feature, with the components broken down into smaller units.
+
+1. Updated `docs/features/todo-list.md` by adding `UI Component Decomposition` with detailed small-unit breakdown for domain/query contracts, feature shell/state ownership, form components, list/table components, filter/sort controls, dependency and recurrence indicators, rule helpers, API units, and async/validation states.
+2. Updated the `Logs` section in `docs/features/todo-list.md` to include this component decomposition update.
+
+---
+
+## @app/README.md:7-13 with these tech stack, build the page on @app/apps/web/app/routes/home.tsx
+
+1. Installed `@tanstack/react-query`, `@tanstack/react-form`, `@tanstack/react-table`, and `zod` in `app/apps/web/package.json` to match the requested stack for the page.
+2. Replaced `app/apps/web/app/routes/home.tsx` with a TODO page implementation using:
+   - TanStack Form for TODO creation form state and submit flow.
+   - Zod schema validation for create payload.
+   - TanStack Query for query/state management of filtered todo data.
+   - TanStack Table for sortable table rendering.
+   - Existing shadcn/ui components (`Button`, `Input`, `Label`) for UI controls.
+
+---
+
+## @docs/features/todo-list.md:106-112 your implementation is not completed. now focus on building this first. Make sure you declare these components separately, not everything in one component
+
+1. Added separate list component files under `app/apps/web/app/components/todo-list/`: `todo-list-section.tsx`, `todo-table.tsx`, `todo-table-header.tsx`, `todo-row.tsx`, `todo-row-actions.tsx`, `todo-pagination.tsx`, and shared `types.ts`.
+2. Refactored `app/apps/web/app/routes/home.tsx` to use the extracted components and removed inlined list/table rendering.
+3. Added row action handling (`edit`, `delete`, `complete`) and page-level pagination wiring to satisfy the `TodoRowActions` and `TodoPagination` component responsibilities.
+
+---
+
+## @docs/features/todo-list.md:115-121 do this now
+
+1. Added separate filter/sort component files under `app/apps/web/app/components/todo-filter/`: `todo-filter-bar.tsx`, `status-filter.tsx`, `priority-filter.tsx`, `due-date-filter.tsx`, `dependency-state-filter.tsx`, `todo-sort-control.tsx`, `clear-filters-button.tsx`, and shared `types.ts`.
+2. Refactored `app/apps/web/app/routes/home.tsx` to use `TodoFilterBar` and all extracted filter units instead of inline controls.
+3. Wired new filter/sort states (`due_date`, `dependency_state`, sort field/order) into the query filtering/sorting logic and added `ClearFiltersButton` reset behavior.
+
+---
+
+## @docs/features/todo-list.md:103-112 redo this part
+
+1. Updated `app/apps/web/app/routes/home.tsx` so clicking `Edit` on a table row fills the form with the selected TODO values.
+2. Updated submit behavior to switch between create and update: when in edit mode, submit updates the existing TODO instead of creating a new one.
+3. Split the form UI into separate React components in the same file (`TodoForm`, `TodoNameField`, `TodoDescriptionField`, `TodoDueDateField`, `TodoStatusField`, `TodoPriorityField`, `TodoFormActions`, plus placeholders for recurrence/dependencies).
+
+---
+
+## @docs/features/todo-list.md:101-112 where is the recurrence and Dependency fields / implement them
+
+1. Implemented `TodoRecurrenceField` and `TodoCustomRecurrenceField` in `app/apps/web/app/routes/home.tsx` with recurrence type select and conditional custom interval/unit inputs.
+2. Implemented `TodoDependenciesField` in `app/apps/web/app/routes/home.tsx` as a multi-select checkbox picker using current TODO items.
+3. Wired recurrence and dependency values into edit-fill logic and create/update submit payloads so these fields persist when creating and editing TODOs.
+
+---
+
+## @docs/features/todo-list.md check create/edit form components. Redo recurrence fields (custom field should take crontab like syntax) and dependencies field (should be multi select).
+
+1. Updated `app/apps/web/lib/models.ts`: Changed `customRecurrenceSchema` from interval/unit/weekdays to use `crontab` string field.
+2. Updated `app/apps/web/app/routes/home.tsx`:
+   - Changed `createTodoFormSchema` to use `custom_crontab` string instead of `custom_interval`/`custom_unit`.
+   - Updated form default values to use `custom_crontab: ""`.
+   - Updated `handleEditTodo` to populate `custom_crontab` from recurrence config.
+   - Updated `onSubmit` to handle `custom_crontab` in create/update payloads.
+   - Replaced `TodoCustomRecurrenceField` with a single text input for crontab expression (e.g., "* * * * *") with helper text.
+   - Simplified `TodoRecurrenceField` to clear crontab when recurrence is not custom.
+   - Replaced `TodoDependenciesField` checkbox list with Combobox using `multiple` prop for multi-select with chips.
+3. Fixed custom recurrence field not showing: Changed to use nested form field that conditionally renders based on `recurrence_type` value.
+4. Added "none" to recurrence types for one-off tasks: Updated schema, default values, edit handling, and submit logic to handle no recurrence.
+5. Reverted custom recurrence to use number + select (interval/unit) instead of crontab syntax.
+
+---
+
+## /write-plan Based on @docs/features/todo-list.md , implement the backend api, use react router api ssr. no golang no protobuf
+
+1. Added backend DB connection module at `app/apps/web/app/db/client.server.ts` using `DATABASE_URL` and `pg` pool.
+2. Added backend todo service module at `app/apps/web/app/services/todo.server.ts` with schema bootstrap, list/get/create/update/delete/dependencies/complete operations, optimistic locking (`updated_at`), `SELECT ... FOR UPDATE` transaction flow, dependency validation, recurrence generation, and soft delete support.
+3. Added React Router SSR API routes:
+   - `app/apps/web/app/routes/api.v1.todos.ts`
+   - `app/apps/web/app/routes/api.v1.todos.$id.ts`
+   - `app/apps/web/app/routes/api.v1.todos.$id.dependencies.ts`
+   - `app/apps/web/app/routes/api.v1.todos.$id.complete.ts`
+4. Updated API route registration in `app/apps/web/app/routes.ts` to expose `/api/v1/todos`, `/api/v1/todos/:id`, `/api/v1/todos/:id/dependencies`, and `/api/v1/todos/:id/complete`.
+5. Updated `app/apps/web/app/routes/home.tsx` to use backend APIs instead of in-memory TODO state:
+   - list via `GET /api/v1/todos`
+   - create via `POST /api/v1/todos`
+   - edit via `PUT /api/v1/todos/:id` only
+   - delete via `DELETE /api/v1/todos/:id`
+6. Updated `docs/features/todo-list.md` backend section to use React Router SSR TypeScript API (removed Golang/protobuf notes), added missing dependency/complete endpoints, and split create/update payload docs to make `PUT` update semantics explicit.
+
+7. Debugged TODO API `GET` 500 error and confirmed root cause was missing runtime `DATABASE_URL`; updated API route error mapping files to return explicit config error message (`Server config error: DATABASE_URL is required`) instead of generic internal server error.
+8. Updated `docs/features/todo-list.md` documentation section to explicitly note `DATABASE_URL` is required for local backend API runtime.
+
+---
+
+## @app/apps/web/app/services/todo.server.ts use drizzle orm instead
+
+1. Updated `app/apps/web/app/db/client.server.ts` to expose `getDb()` using `drizzle-orm/node-postgres` on the shared `pg` pool.
+2. Refactored `app/apps/web/app/services/todo.server.ts` to run all database operations through Drizzle (`db.execute`, `db.transaction`) instead of direct `pool.query` / `client.query` calls, including list/count queries and transactional writes.
+
+---
+
+## why using client execute syntax? use orm related syntax instead
+
+1. Added Drizzle table definitions in `app/apps/web/app/db/schema.ts` (`todo_items`, `todo_dependencies`) and wired `getDb()` to use `{ schema }` in `app/apps/web/app/db/client.server.ts`.
+2. Refactored `app/apps/web/app/services/todo.server.ts` to use Drizzle query builders (`select`, `insert`, `update`, `delete`, `where`, `inArray`, `exists`, `count`, `for('update')`, etc.) instead of `db.execute(sql\`...\`)` for CRUD and listing; kept `db.execute(sql.raw(...))` only for one-off DDL in `ensureTodoSchema()`.
+3. Normalized list/detail API rows to use `dependency_ids` (with `recurrence` built from stored type/config) so responses match the shared `todoSchema` / home UI.
+4. `app/apps/web/app/db/client.server.ts`: accept `DATABASE_URL` or `VITE_DATABASE_URL` for the connection string (still throws `DATABASE_URL is required` when neither is set, for existing API error handling).

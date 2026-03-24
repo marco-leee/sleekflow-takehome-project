@@ -14,4 +14,5 @@ Design and product notes for this worktree. Content is split by topic; use the l
 | [DevOps / infrastructure](devops-infrastructure.md) | AWS, Cloudflare |
 | [Final project scope](project-scope.md) | In scope, out of scope, MVP notes |
 
-The repository root [README.md](../../../README.md) also links to this documentation set.
+The repository root [README.md](../README.md) also links to this documentation set.
+

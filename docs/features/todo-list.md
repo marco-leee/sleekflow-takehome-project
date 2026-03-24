@@ -66,13 +66,187 @@ Users can track work in one place with predictable task states, clear priority o
   - Dependency and recurrence indicators.
 - Client-side state tracks current filter/sort parameters and current page of results.
 
+## Considerations
+
+1. Filtering
+   1. Filtering by due date should be a range filter.
+   2. Filter by status, priority, dependency state should be a multi-select filter.
+   3. Search by name or description would take more than just string, pattern matching.
+      1. User may not know the exact name or description of the task, so we need to use a more flexible search.
+      2. Full text search will be required here
+      3. PSQL tsvector + tsquery will be used in this demo app
+
+### UI Component Decomposition
+
+#### 1) Domain and Query Contracts
+
+- `Todo`: `id`, `name`, `description`, `due_date`, `status`, `priority`, `recurrence_type`, `recurrence_config`, `dependencies`.
+- `TodoStatus`: `Not Started`, `In Progress`, `Completed`, `Archived`.
+- `TodoPriority`: `Low`, `Medium`, `High`.
+- `RecurrenceType`: `daily`, `weekly`, `monthly`, `custom`.
+- `DependencyState`: `blocked`, `unblocked`.
+- `TodoFilters`: `status`, `priority`, `due_date`, `dependency_state`.
+- `TodoSort`: `field` (`due_date`, `priority`, `status`, `name`) + `direction` (`asc`, `desc`).
+- `PaginationState`: `page`, `page_size`.
+
+#### 2) Feature Shell and State Ownership
+
+- `TodoFeaturePage` (composition root):
+  - composes form, filter/sort bar, list/table, and badges/indicators.
+- `useTodoFeatureState` (or `TodoStateProvider`):
+  - owns current filters, sort, pagination, selected todo, and modal/form mode.
+  - owns async query states (`idle`, `loading`, `success`, `error`).
+- Child components should be presentational and receive data/callbacks via props.
+
+#### 3) Create/Edit Form Components
+
+- `TodoForm` (container and submit orchestration).
+- `TodoNameField`
+- `TodoDescriptionField`
+- `TodoDueDateField`
+- `TodoStatusField`
+- `TodoPriorityField`
+- `TodoRecurrenceField`
+- `TodoCustomRecurrenceField` (only visible when recurrence is `custom`)
+- `TodoDependenciesField` (multi-select dependency picker)
+- `TodoFormActions` (submit + cancel)
+
+#### 4) List/Table Components
+
+- `TodoListSection` (list region container).
+- `TodoTable` (table renderer).
+- `TodoTableHeader` (sortable columns).
+- `TodoRow` (single todo rendering).
+- `TodoRowActions` (`edit`, `delete`, `complete`).
+- `TodoPagination` (page navigation controls).
+
+#### 5) Filter and Sort Components
+
+- `TodoFilterBar` (control container).
+- `StatusFilter`
+- `PriorityFilter`
+- `DueDateFilter`
+- `DependencyStateFilter`
+- `TodoSortControl` (sort field and direction)
+- `ClearFiltersButton`
+
+#### 6) Dependency and Recurrence Indicators
+
+- `DependencyBadge` (`blocked` / `unblocked` state chip).
+- `DependencyTooltip` (which dependencies are unmet).
+- `RecurrenceBadge` (`daily`/`weekly`/`monthly`/`custom` tag).
+- `NextOccurrencePreview` (next generated due date after completion).
+
+#### 7) Rule Helper Units (Pure Logic)
+
+- `isBlocked(todo, dependencyMap)`: true if any dependency is not completed.
+- `canTransitionToInProgress(todo, dependencyMap)`: enforces "no unmet deps before `In Progress`".
+- `getNextOccurrence(todo)`: computes next instance date for recurring todos.
+- `buildFilterParams(filters)`: maps UI state to API query params.
+- `buildSortParams(sort)`: maps UI sort state to API query params.
+
+#### 8) API and Async UI State Units
+
+- `TodoApiClient`:
+  - `listTodos(filters, sort, pagination)`
+  - `createTodo(payload)`
+  - `updateTodo(id, payload)`
+  - `deleteTodo(id)`
+- `TodoMapper`: API DTO to UI contract mapping.
+- Async state components:
+  - `TodoLoadingState`
+  - `TodoEmptyState`
+  - `TodoErrorState`
+- Form validation units:
+  - `TodoFormValidationSummary`
+  - `InlineFieldError`
+
+#### Build Order
+
+1. Domain/query contracts and API client contracts.
+2. Feature shell and feature state ownership.
+3. List/table and filter/sort controls.
+4. Create/edit form split into small fields.
+5. Dependency/recurrence indicators and rule helpers.
+6. Async and validation UI states.
+
+
+
 ---
 
 ### Backend
 
-- Golang todo domain module exposing API handlers for CRUD, filter/sort query, dependency updates, and recurrence execution.
+- React Router SSR TypeScript API routes exposing handlers for CRUD, filter/sort query, dependency updates, and recurrence execution.
 - Dependency and recurrence rules are enforced in backend logic (not UI-only checks).
 - DTO responses expose only fields required by the todo-list client.
+
+### Consideration
+
+1. Multiple users may be using the same TODO list at the same time.
+   1. We need to ensure that the data is consistent across all users writing to the same TODO item.
+   2. PSQL offers ACID transactions and row level locking.
+      1. Always use transactions when updating the TODO item.
+      2. Use `select for update` to lock the row for the duration of the transaction.
+      3. Client should always include a timestamp in the request. This is used to check against the `updated_at` timestamp to ensure the incoming request is not stale.
+      4. If the incoming request is stale, the transaction should be rolled back and the client should be notified.
+      5. If the incoming request is not stale, the transaction should be committed.
+      6. If the transaction is committed, all clients should be notified.
+
+## Backend API Specification
+
+### Endpoints
+
+| # | Method | Endpoint | Purpose |
+|---|--------|----------|---------|
+| 1 | GET | `/api/v1/todos` | List TODOs with filtering, sorting, and pagination |
+| 2 | GET | `/api/v1/todos/:id` | Get single TODO by ID |
+| 3 | POST | `/api/v1/todos` | Create new TODO |
+| 4 | PUT | `/api/v1/todos/:id` | Update TODO with optimistic locking |
+| 5 | DELETE | `/api/v1/todos/:id` | Soft delete TODO |
+
+### Query Parameters
+
+#### List Endpoint (GET /api/v1/todos)
+- **Filters**: `status` (multi-select), `priority` (multi-select), `due_date_from`, `due_date_to`, `dependency_state` (blocked/unblocked)
+- **Sort**: `sort_by` (due_date, priority, status, name), `sort_direction` (asc, desc)
+- **Pagination**: `page`, `page_size`
+
+#### Create Payload
+```json
+{
+  "name": "string",
+  "description": "string",
+  "due_date": "timestamp",
+  "status": "Not Started | In Progress | Completed | Archived",
+  "priority": "Low | Medium | High",
+  "recurrence_type": "daily | weekly | monthly | custom | null",
+  "recurrence_config": "string (JSON for custom)",
+  "dependencies": ["todo_id_1", "todo_id_2"]
+}
+```
+
+#### Update Payload (PUT /api/v1/todos/:id)
+```json
+{
+  "name": "string",
+  "description": "string",
+  "due_date": "timestamp",
+  "status": "Not Started | In Progress | Completed | Archived",
+  "priority": "Low | Medium | High",
+  "recurrence_type": "daily | weekly | monthly | custom | null",
+  "recurrence_config": "string (JSON for custom)",
+  "dependencies": ["todo_id_1", "todo_id_2"],
+  "updated_at": "timestamp (required for optimistic locking)"
+}
+```
+
+### Implementation Notes
+
+1. DTOs expose only fields required by client
+2. Optimistic locking: client includes `updated_at` in update requests
+3. Use `SELECT FOR UPDATE` with transactions for concurrent updates
+4. Soft delete: set `deleted_at` timestamp, exclude from default queries
+5. Shared create/edit form behavior: create requests use `POST /api/v1/todos`, and all edits to existing TODO items use `PUT /api/v1/todos/:id`
 
 ### Database
 
@@ -95,7 +269,6 @@ classDiagram
     }
 
     class TodoDependency {
-        string id pk
         string todo_id fk
         string depends_on_todo_id fk
         timestamp created_at
