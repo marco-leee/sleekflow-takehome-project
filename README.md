@@ -1,6 +1,8 @@
 # Sleekflow Todo list app
 
-## Design documentation
+## Task 1 (System design) [System Design project](docs/Take-home%20system%20Design%20Question.pdf)
+
+### Design documentation
 
 Extended product and system design notes live under [docs/](docs/main.md):
 
@@ -12,6 +14,9 @@ Extended product and system design notes live under [docs/](docs/main.md):
 - [Tech stack](docs/tech-stack.md)
 - [DevOps / infrastructure](docs/devops-infrastructure.md)
 - [Final project scope](docs/project-scope.md)
+
+
+## Task 2 (Application design) [Software Engineer Interview Project](docs/SleekFlow%20Software%20Engineer%20Interview%20Project.pdf)
 
 ## Commands
 
