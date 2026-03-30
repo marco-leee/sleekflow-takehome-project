@@ -85,6 +85,46 @@ function formatForDateTimeLocal(dateTimeIso: string) {
   return `${yyyy}-${mm}-${dd}T${hh}:${min}`
 }
 
+async function messageFromApiErrorResponse(
+  response: Response,
+  fallback: string
+): Promise<string> {
+  try {
+    const data = (await response.json()) as {
+      error?: {
+        message?: string
+        details?: {
+          fieldErrors?: Record<string, string[] | undefined>
+          formErrors?: string[]
+        }
+      }
+    }
+    const err = data.error
+    if (!err || typeof err.message !== "string") {
+      return fallback
+    }
+    const base = err.message.trim() || fallback
+    const extras: string[] = []
+    for (const e of err.details?.formErrors ?? []) {
+      if (e) extras.push(e)
+    }
+    const fieldErrors = err.details?.fieldErrors
+    if (fieldErrors) {
+      for (const [field, msgs] of Object.entries(fieldErrors)) {
+        if (Array.isArray(msgs)) {
+          for (const m of msgs) {
+            if (m) extras.push(`${field}: ${m}`)
+          }
+        }
+      }
+    }
+    if (extras.length === 0) return base
+    return `${base}: ${extras.join("; ")}`
+  } catch {
+    return fallback
+  }
+}
+
 function HomePage() {
   const queryClientApi = useQueryClient()
   const [search, setSearch] = useState("")
@@ -300,7 +340,9 @@ function HomePage() {
         })
 
         if (!response.ok) {
-          setFormError("Failed to update TODO")
+          setFormError(
+            await messageFromApiErrorResponse(response, "Failed to update TODO")
+          )
           return
         }
 
