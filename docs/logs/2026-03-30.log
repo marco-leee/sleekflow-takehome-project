@@ -9,3 +9,17 @@
 ## PUT todo form: show API error message
 
 1. [app/apps/web/app/routes/home.tsx](app/apps/web/app/routes/home.tsx): Added `messageFromApiErrorResponse()`; failed PUT uses JSON `error.message` plus `details.formErrors` / `details.fieldErrors` when present, else fallback string.
+
+---
+
+## Seed 500k todo rows (TS script)
+
+1. [app/apps/web/scripts/seed-500k.ts](app/apps/web/scripts/seed-500k.ts): New Bun/TS script — preallocates UUIDs, batch-inserts `todo_items` (`item_{idx}` name/description, due date UTC noon today, `Not Started`, `Low`), then batch-inserts `todo_dependencies` (no deps for `item_0`/`item_1`; `item_i` for `i>=2` depends on `item_{i-2}` and `item_{i-1}`).
+2. [app/apps/web/package.json](app/apps/web/package.json): Added `seed:500k` script.
+3. [app/apps/web/pg.d.ts](app/apps/web/pg.d.ts): Declared `Pool.end(): Promise<void>` on the local `pg` module stub.
+
+---
+
+## Edit form: dependency chip names off-page
+
+1. [app/apps/web/app/routes/home.tsx](app/apps/web/app/routes/home.tsx): `allTodos` is only the current list page; dependency IDs often point to todos not loaded. Added `dependencyNameById` + `editingDependencyIdsRef`, and a `useEffect` that loads names from the list page and `GET /api/v1/todos/:id` for missing IDs. Chips use `dependencyNameById[id] ?? allTodos.find(...)?.name ?? id`.

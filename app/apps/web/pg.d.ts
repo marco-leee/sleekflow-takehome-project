@@ -13,5 +13,6 @@ declare module "pg" {
     constructor(options?: { connectionString?: string })
     query<T = unknown>(text: string, values?: unknown[]): Promise<QueryResult<T>>
     connect(): Promise<PoolClient>
+    end(): Promise<void>
   }
 }

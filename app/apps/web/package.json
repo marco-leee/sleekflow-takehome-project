@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "seed:500k": "bun run ./scripts/seed-500k.ts",
     "dev": "react-router dev",
     "build": "react-router build",
     "start": "react-router-serve ./build/server/index.js",

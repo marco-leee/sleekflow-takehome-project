@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "@tanstack/react-form"
 import {
   QueryClient,
@@ -146,6 +146,10 @@ function HomePage() {
   const [editingTodoUpdatedAt, setEditingTodoUpdatedAt] = useState<string | null>(
     null
   )
+  const [dependencyNameById, setDependencyNameById] = useState<
+    Record<string, string>
+  >({})
+  const editingDependencyIdsRef = useRef<string[]>([])
 
   const todoListQuery = useQuery({
     queryKey: ["todos", search, statusFilter, priorityFilter, dueDateFilter, dependencyStateFilter, sortField, sortOrder, page, pageSize],
@@ -192,10 +196,57 @@ function HomePage() {
   )
   const allTodos = paginatedTodos
 
+  useEffect(() => {
+    if (!editingTodoId) {
+      setDependencyNameById({})
+      return
+    }
+
+    const depIds = editingDependencyIdsRef.current
+    const items = todoListQuery.data?.items ?? []
+    const fromPage: Record<string, string> = {}
+    for (const t of items) {
+      fromPage[t.id] = t.name
+    }
+
+    const missing = depIds.filter((id) => fromPage[id] === undefined)
+    if (missing.length === 0) {
+      setDependencyNameById(fromPage)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      const resolved = { ...fromPage }
+      await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const res = await fetch(`/api/v1/todos/${id}`)
+            if (!res.ok) return
+            const data = (await res.json()) as TodoApiItem
+            if (typeof data.name === "string") {
+              resolved[id] = data.name
+            }
+          } catch {
+            /* ignore */
+          }
+        })
+      )
+      if (!cancelled) {
+        setDependencyNameById(resolved)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [editingTodoId, todoListQuery.data?.items])
+
   const handleEditTodo = (todoId: string) => {
     const todo = allTodos.find((t) => t.id === todoId)
     if (!todo) return
 
+    editingDependencyIdsRef.current = todo.dependency_ids
     setEditingTodoId(todoId)
     setEditingTodoUpdatedAt(todo.updated_at ?? null)
     void form.setFieldValue("name", todo.name, { dontValidate: true })
@@ -565,9 +616,10 @@ function HomePage() {
                 <ComboboxChips>
                   {field.state.value.map((id) => {
                     const todo = allTodos.find((t) => t.id === id)
+                    const label = dependencyNameById[id] ?? todo?.name ?? id
                     return (
                       <ComboboxChip key={id}>
-                        {todo?.name ?? id}
+                        {label}
                       </ComboboxChip>
                     )
                   })}
