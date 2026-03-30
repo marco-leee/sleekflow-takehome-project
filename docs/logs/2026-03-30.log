@@ -1,0 +1,11 @@
+---
+
+## Fix "Invalid ISO datetime" on PUT updated_at
+
+1. [app/apps/web/app/services/todo.server.ts](app/apps/web/app/services/todo.server.ts): Added `timestampToIso()` helper; `toTodoRow` now sets `due_date`, `created_at`, `updated_at`, and `deleted_at` (when present) via `new Date(...).toISOString()` so API JSON matches Zod `z.string().datetime()` and PUT optimistic-lock `updated_at` round-trips.
+
+---
+
+## PUT todo form: show API error message
+
+1. [app/apps/web/app/routes/home.tsx](app/apps/web/app/routes/home.tsx): Added `messageFromApiErrorResponse()`; failed PUT uses JSON `error.message` plus `details.formErrors` / `details.fieldErrors` when present, else fallback string.

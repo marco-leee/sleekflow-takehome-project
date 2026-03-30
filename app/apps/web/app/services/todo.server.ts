@@ -148,6 +148,10 @@ function buildRecurrence(
   return { type: recurrenceType as "daily" | "weekly" | "monthly" }
 }
 
+function timestampToIso(value: string): string {
+  return new Date(value).toISOString()
+}
+
 function toTodoRow(
   row: typeof todoItems.$inferSelect,
   dependencyIds: string[]
@@ -156,14 +160,14 @@ function toTodoRow(
     id: row.id,
     name: row.name,
     description: row.description,
-    due_date: row.dueDate,
+    due_date: timestampToIso(row.dueDate),
     status: row.status as z.infer<typeof todoStatusSchema>,
     priority: row.priority as z.infer<typeof todoPrioritySchema>,
     dependency_ids: dependencyIds,
     recurrence: buildRecurrence(row.recurrenceType, row.recurrenceConfig),
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-    deleted_at: row.deletedAt ?? null,
+    created_at: timestampToIso(row.createdAt),
+    updated_at: timestampToIso(row.updatedAt),
+    deleted_at: row.deletedAt != null ? timestampToIso(row.deletedAt) : null,
   }
 }
 
